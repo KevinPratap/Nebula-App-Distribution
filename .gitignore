@@ -1,0 +1,34 @@
+# Binary exclusions (Large files)
+*.exe
+*.zip
+*.bin
+*.msi
+
+# Build artifacts
+dist/
+build/
+bin/
+obj/
+release/
+x64/
+x86/
+node_modules/
+__pycache__/
+.env
+.venv
+venv/
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+user_settings.json
+
+session.json
