@@ -656,6 +656,9 @@ def auth_github():
     if flow_session_id:
         session['nebula_flow_id'] = flow_session_id
         state_val = f"nebula_app_{flow_session_id}"
+    else:
+        # v27 Clean stale session if not performing an app flow
+        session.pop('nebula_flow_id', None)
         
     return github.authorize_redirect(redirect_uri, state=state_val)
 
@@ -754,6 +757,9 @@ def auth_google():
     if flow_session_id:
         session['nebula_flow_id'] = flow_session_id
         state_val = f"nebula_app_{flow_session_id}"
+    else:
+        # v27 Clean stale session if not performing an app flow
+        session.pop('nebula_flow_id', None)
         
     return google.authorize_redirect(redirect_uri, state=state_val)
 
