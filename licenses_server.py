@@ -1123,8 +1123,8 @@ def health(): return jsonify({"status": "healthy", "version": "v25_PRODUCTION_ST
 
 @app.route('/download')
 def download_app():
-    \"\"\"Smart binary distribution redirect (v25) - Fallback to local installer if no URL set\"\"\"
-    download_url = os.getenv(\"DOWNLOAD_URL\")
+    """Smart binary distribution redirect (v25) - Fallback to local installer if no URL set"""
+    download_url = os.getenv("DOWNLOAD_URL")
     if download_url:
         return redirect(download_url)
     
@@ -1134,8 +1134,8 @@ def download_app():
         return redirect(f'/{local_installer}')
         
     return jsonify({
-        \"status\": \"pending\",
-        \"message\": \"Public Beta download link is currently being updated. Please check back in a moment or contact support.\"
+        "status": "pending",
+        "message": "Public Beta download link is currently being updated. Please check back in a moment or contact support."
     }), 503
 
 @app.route('/')
