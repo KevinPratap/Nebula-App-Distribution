@@ -710,15 +710,17 @@ def auth_github_callback():
             
         access_token = create_access_token(identity=str(user_id))
         
-        # Check for flow_session_id (App Flow) - v22 Fix with Prefix
+        # Check specifically for App Flow using state prefix (v27 Priority fix)
         state = request.args.get('state')
         cookie_flow_id = session.get('nebula_flow_id')
         
         final_flow_id = None
-        if cookie_flow_id:
-            final_flow_id = cookie_flow_id
-        elif state and state.startswith('nebula_app_'):
+        # Strict state check first to avoid stale session hijacking web logins
+        if state and state.startswith('nebula_app_'):
             final_flow_id = state.replace('nebula_app_', '', 1)
+        elif cookie_flow_id:
+            # Fallback for backward compatibility, but state is preferred
+            final_flow_id = cookie_flow_id
             
         if final_flow_id:
             with sqlite3.connect(DB_FILE) as conn:
@@ -792,15 +794,17 @@ def auth_google_callback():
 
         access_token = create_access_token(identity=str(user_id))
         
-        # Check for flow_session_id (App Flow) - v22 Fix with Prefix
+        # Check specifically for App Flow using state prefix (v27 Priority fix)
         state = request.args.get('state')
         cookie_flow_id = session.get('nebula_flow_id')
         
         final_flow_id = None
-        if cookie_flow_id:
-            final_flow_id = cookie_flow_id
-        elif state and state.startswith('nebula_app_'):
+        # Strict state check first to avoid stale session hijacking web logins
+        if state and state.startswith('nebula_app_'):
             final_flow_id = state.replace('nebula_app_', '', 1)
+        elif cookie_flow_id:
+            # Fallback for backward compatibility, but state is preferred
+            final_flow_id = cookie_flow_id
             
         if final_flow_id:
             with sqlite3.connect(DB_FILE) as conn:
