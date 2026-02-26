@@ -1,0 +1,150 @@
+/* --- GLOBAL RESET --- */
+QWidget {
+    font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+    color: #F8FAFC; /* Slate 50 */
+    outline: none;
+}
+
+/* --- SCROLLBARS (Hidden/Minimal) --- */
+QScrollBar:vertical {
+    background: transparent;
+    width: 6px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    min-height: 30px;
+}
+QScrollBar::handle:vertical:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
+
+/* --- SIDEBAR (Glass Panel) --- */
+QWidget#Sidebar {
+    background-color: rgba(15, 23, 42, 0.85); /* Slate 900 @ 85% */
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-top-left-radius: 24px;
+    border-bottom-left-radius: 24px;
+}
+
+/* --- CONTENT AREA (Glass Panel) --- */
+QWidget#ContentArea {
+    /* No background, let the main window gradient show through, 
+       but maybe a subtle tint for contrast */
+}
+
+/* --- TEXT EDITORS (Modern Cards) --- */
+QTextEdit {
+    background-color: rgba(2, 6, 23, 0.6); /* Slate 950 @ 60% */
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 20px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #E2E8F0;
+}
+QTextEdit:focus {
+    border: 1px solid rgba(167, 139, 250, 0.5); /* Violet glow */
+    background-color: rgba(2, 6, 23, 0.8);
+}
+
+/* --- BUTTONS (Neon Gradient) --- */
+QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #7C3AED, stop:1 #4F46E5); /* Violet to Indigo */
+    color: white;
+    border-radius: 18px;
+    padding: 14px 28px;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+QPushButton:hover {
+    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #8B5CF6, stop:1 #6366F1);
+    border: 1px solid rgba(255,255,255,0.3);
+    margin-top: -2px;
+}
+QPushButton:pressed {
+    margin-top: 1px;
+    background-color: #5B21B6;
+}
+
+/* Ghost Button (Settings) */
+QPushButton#GhostButton {
+    background-color: rgba(255, 255, 255, 0.03);
+    color: #94A3B8;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+QPushButton#GhostButton:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #F1F5F9;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Destructive (Logout) */
+QPushButton#DestructiveButton {
+    background-color: rgba(220, 38, 38, 0.15);
+    color: #F87171;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+}
+QPushButton#DestructiveButton:hover {
+    background-color: rgba(220, 38, 38, 0.3);
+    color: #FECACA;
+}
+
+/* --- LABELS --- */
+QLabel {
+    color: #CBD5E1; /* Slate 300 */
+}
+
+/* --- TOGGLES (Checkboxes as Switches) --- */
+QCheckBox {
+    color: #E2E8F0;
+    spacing: 10px; /* Tighter spacing */
+    font-size: 13px; /* Smaller text */
+    font-weight: 600;
+    background: transparent;
+    min-height: 30px; /* Compact height */
+    padding-left: 0px;
+    margin: 2px 0;
+}
+QCheckBox::indicator {
+    width: 42px; /* Standard Toggle Size */
+    height: 22px;
+    border-radius: 11px;
+    background-color: #334155; 
+    border: 1px solid #1E293B; /* Thinner border */
+}
+QCheckBox::indicator:unchecked:hover {
+    background-color: #475569;
+}
+QCheckBox::indicator:checked {
+    background-color: #8B5CF6; /* Violet 500 */
+    border: 2px solid #7C3AED;
+    image: url(:/icons/check.png); /* Optional: if we had icons */
+}
+QCheckBox::indicator:checked:hover {
+    background-color: #7C3AED;
+}
+
+/* --- SLIDERS --- */
+QSlider::groove:horizontal {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+QSlider::sub-page:horizontal {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #C084FC, stop:1 #A78BFA);
+    border-radius: 3px;
+}
+QSlider::handle:horizontal {
+    background: #F8FAFC;
+    width: 20px;
+    height: 20px;
+    margin: -7px 0; /* center on groove */
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5); /* No effect in QSS, redundant */
+}

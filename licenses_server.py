@@ -296,8 +296,8 @@ def register():
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO users (email, password_hash, hwid, created_at) VALUES (?, ?, ?, ?)",
-                         (email, pwd_hash, hwid, created_at))
+            cursor.execute("INSERT INTO users (email, password_hash, hwid, created_at, credits) VALUES (?, ?, ?, ?, ?)",
+                         (email, pwd_hash, hwid, created_at, 50))
             user_id = cursor.lastrowid
             cursor.execute("INSERT INTO subscriptions (user_id, trial_end) VALUES (?, ?)", (user_id, trial_end))
             conn.commit()
@@ -340,8 +340,14 @@ def me():
     uid = get_jwt_identity()
     with sqlite3.connect(DB_FILE) as conn:
         conn.row_factory = sqlite3.Row
-        u = conn.cursor().execute("SELECT u.*, s.plan, s.status FROM users u LEFT JOIN subscriptions s ON u.id=s.user_id WHERE u.id=?", (uid,)).fetchone()
-    return jsonify(dict(u)) if u else (jsonify({"error": "User not found"}), 404)
+    u = conn.cursor().execute("SELECT u.*, s.plan, s.status FROM users u LEFT JOIN subscriptions s ON u.id=s.user_id WHERE u.id=?", (uid,)).fetchone()
+    if u:
+        data = dict(u)
+        # Ensure default metadata if subscription missing
+        if data.get('plan') is None: data['plan'] = 'FREE_TRIAL'
+        if data.get('status') is None: data['status'] = 'ACTIVE'
+        return jsonify(data)
+    return jsonify({"error": "User not found"}), 404
 
 @app.route('/api/consume', methods=['POST'])
 @jwt_required()

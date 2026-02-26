@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEBULA V6 - FORCED UPDATE</title>
+
+    <!-- 1. GLOBAL ERROR HANDLER -->
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            document.body.innerHTML = `
+                <div style="background:#000; color:#ff4444; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; font-family:monospace; padding:20px; box-sizing:border-box;">
+                    <h1 style="font-size:32px; margin-bottom:10px;">⚠️ SYSTEM CRITICAL</h1>
+                    <p style="font-size:18px; color:#fff; margin-bottom:20px;">${msg}</p>
+                    <div style="background:#111; padding:15px; border-radius:8px; border:1px solid #333; max-width:800px; width:100%;">
+                        <p style="color:#888; margin:0;">Location: Line ${line}</p>
+                        <p style="color:#666; font-size:12px; margin-top:10px;">Trace: ${error?.stack || 'N/A'}</p>
+                    </div>
+                    <button onclick="window.location.reload()" style="margin-top:30px; padding:12px 24px; background:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">REBOOT SYSTEM</button>
+                    <p style="color:#444; margin-top:30px; font-size:12px;">Ensure you have an active internet connection.</p>
+                </div>
+            `;
+            return true;
+        };
+    </script>
+
+    <!-- 2. STABLE LIBRARIES (High-Reliability Version Stack via jsDelivr) -->
+    <!-- React & DOM -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+
+    <!-- Mandatory dependency for Recharts UMD -->
+    <script src="https://cdn.jsdelivr.net/npm/prop-types@15.8.1/prop-types.min.js"></script>
+
+    <!-- Babel (Compiler) -->
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
+
+    <!-- Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Visualization (Recharts) - Explicit UMD Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/recharts@2.10.3/umd/Recharts.min.js"></script>
+
+    <!-- Animation (Framer Motion) -->
+    <script src="https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { bg: '#030712', panel: '#111827', accent: '#8B5CF6', success: '#10B981', danger: '#EF4444' },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400&display=swap');
+
+        body {
+            background-color: #030712;
+            color: #F8FAFC;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        .glass {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        #starfield {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed !important;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                width: 200px !important;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 110;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0 !important;
+                width: 100% !important;
+                padding: 1rem !important;
+            }
+
+            .mobile-menu-btn {
+                display: block !important;
+                position: fixed;
+                top: 1rem;
+                left: 1rem;
+                z-index: 150;
+                background: rgba(139, 92, 246, 0.95);
+                padding: 0.75rem;
+                border-radius: 0.5rem;
+                cursor: pointer;
+                border: 2px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            }
+
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 105;
+            }
+
+            .mobile-overlay.show {
+                display: block;
+            }
+
+            /* Make dashboard grid stack vertically on mobile */
+            .grid-cols-4 {
+                grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+            }
+
+            .grid-cols-3 {
+                grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+            }
+
+            /* Adjust table for mobile */
+            table {
+                font-size: 0.75rem !important;
+            }
+
+            th,
+            td {
+                padding: 0.5rem !important;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .mobile-menu-btn {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="starfield"></canvas>
+    <div id="root"></div>
+
+    {% raw %}
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- SAFE IMPORT LOGIC ---
+        // Guaranteed to not crash even if libraries are missing
+        const SafeRecharts = window.Recharts || {};
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } = SafeRecharts;
+        const ChartsAvailable = !!window.Recharts;
+
+        const SafeMotion = window.Motion ? window.Motion.motion : {
+            div: ({ children, className, ...props }) => <div className={className} {...props}>{children}</div>
+        };
+        const SafeAnimatePresence = (window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : ({ children }) => React.createElement(React.Fragment, null, children);
+
+        // --- COMPONENTS ---
+        const ChartPlaceholder = () => (
+            <div className="w-full h-full flex flex-col items-center justify-center border border-dashed border-white/10 rounded-lg bg-white/5">
+                <p className="text-gray-400 font-bold text-sm">VIZ MODULE OFFLINE</p>
+                <p className="text-gray-600 text-xs mt-1">Recharts library failed to load</p>
+            </div>
+        );
+
+        const CustomTooltip = ({ active, payload }) => {
+            if (active && payload && payload.length) {
+                return (
+                    <div className="glass p-3 rounded-xl border border-white/10 shadow-2xl">
+                        <p className="text-[10px] text-accent font-bold uppercase tracking-wider mb-1">{payload[0].name}</p>
+                        <p className="text-xl font-bold text-white tracking-tighter">{payload[0].value.toLocaleString()}</p>
+                    </div>
+                );
+            }
+            return null;
+        };
+
+        const StatCard = ({ title, value, sub, trend = 'up' }) => (
+            <SafeMotion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="glass p-6 rounded-2xl border border-white/5 relative overflow-hidden transition-all hover:border-accent/30 group"
+            >
+                <div className="absolute -top-10 -right-10 w-24 h-24 bg-accent/5 blur-3xl group-hover:bg-accent/20 transition-all rounded-full"></div>
+                <h3 className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2">{title}</h3>
+                <div className="flex items-end justify-between">
+                    <p className="text-3xl font-bold text-white tracking-tighter">{value}</p>
+                    {sub && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${trend === 'up' ? 'text-success bg-success/5 border-success/10' : 'text-danger bg-danger/5 border-danger/10'}`}>
+                        {sub}
+                    </span>}
+                </div>
+            </SafeMotion.div>
+        );
+
+        const LoadingScreen = () => (
+            <div className="h-screen w-full flex flex-col items-center justify-center text-accent">
+                <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-xs tracking-[0.3em] font-bold animate-pulse">CONNECTING TO CORE...</p>
+            </div>
+        );
+
+        // --- STARFIELD ---
+        const Starfield = () => {
+            useEffect(() => {
+                const cvs = document.getElementById('starfield');
+                const ctx = cvs.getContext('2d');
+                let w = cvs.width = window.innerWidth, h = cvs.height = window.innerHeight;
+                const stars = Array.from({ length: 150 }, () => ({ x: Math.random() * w, y: Math.random() * h, s: Math.random() * 2, sp: Math.random() * 0.3 + 0.1 }));
+                const draw = () => {
+                    ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#FFF';
+                    stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI * 2); ctx.fill(); s.y += s.sp; if (s.y > h) s.y = 0; });
+                    requestAnimationFrame(draw);
+                };
+                draw();
+            }, []);
+            return null;
+        };
+
+        // --- MAIN APP ---
+        function App() {
+            const [view, setView] = useState('dashboard');
+            const [data, setData] = useState(null);
+            const [auth, setAuth] = useState(localStorage.getItem('admin_pass') || '');
+            const [isAuth, setIsAuth] = useState(false);
+            const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+            // Swipe gesture support for mobile
+            useEffect(() => {
+                let touchStartX = 0;
+                let touchEndX = 0;
+
+                const handleTouchStart = (e) => {
+                    touchStartX = e.changedTouches[0].screenX;
+                };
+
+                const handleTouchEnd = (e) => {
+                    touchEndX = e.changedTouches[0].screenX;
+                    handleSwipe();
+                };
+
+                const handleSwipe = () => {
+                    const swipeDistance = touchEndX - touchStartX;
+                    // Swipe right from left edge to open (> 50px)
+                    if (touchStartX < 50 && swipeDistance > 100) {
+                        setMobileMenuOpen(true);
+                    }
+                    // Swipe left to close (> 50px)
+                    if (swipeDistance < -100 && mobileMenuOpen) {
+                        setMobileMenuOpen(false);
+                    }
+                };
+
+                document.addEventListener('touchstart', handleTouchStart);
+                document.addEventListener('touchend', handleTouchEnd);
+
+                return () => {
+                    document.removeEventListener('touchstart', handleTouchStart);
+                    document.removeEventListener('touchend', handleTouchEnd);
+                };
+            }, [mobileMenuOpen]);
+
+            const api = async (ep, method = 'GET', body = null) => {
+                try {
+                    const res = await fetch(ep, { method, headers: { 'Content-Type': 'application/json', 'X-Admin-Password': auth }, body: body ? JSON.stringify(body) : null });
+                    if (res.status === 401) { setIsAuth(false); return null; }
+                    return await res.json();
+                } catch (e) { console.error(e); return null; }
+            };
+
+            const downloadDB = async () => {
+                try {
+                    const res = await fetch('/admin/download_db', {
+                        method: 'GET',
+                        headers: { 'X-Admin-Password': auth }
+                    });
+
+                    if (res.status === 401) {
+                        alert("Unauthorized. Please re-login.");
+                        setIsAuth(false);
+                        return;
+                    }
+
+                    if (!res.ok) throw new Error('Download failed');
+
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'licenses.db';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } catch (e) {
+                    alert("Download failed: " + e.message);
+                }
+            };
+
+            const refresh = async () => {
+                const [s, u, k, c] = await Promise.all([api('/admin/stats'), api('/admin/users'), api('/admin/list'), api('/admin/config')]);
+                if (s) { setIsAuth(true); setData({ stats: s, users: u, keys: k, config: c }); }
+            };
+
+            useEffect(() => { if (auth) refresh(); }, [auth]);
+
+            const login = () => { localStorage.setItem('admin_pass', auth); refresh(); };
+            const genKey = async (c, d) => { await api('/admin/generate_bulk', 'POST', { count: +c, days: +d }); refresh(); };
+            const delUser = async (id) => { if (confirm('Delete user?')) { await api('/admin/user/delete', 'POST', { id }); refresh(); } };
+
+            const [editingUser, setEditingUser] = useState(null);
+            const updateUser = async (user) => {
+                await api('/admin/user/update', 'POST', user);
+                setEditingUser(null);
+                refresh();
+            };
+
+            if (!isAuth) return (
+                <div className="h-screen w-full flex items-center justify-center relative z-50">
+                    <div className="glass p-10 rounded-2xl w-96 border border-white/10 text-center shadow-2xl">
+                        <h1 className="text-4xl font-black text-white mb-2 tracking-tighter">NEBULA</h1>
+                        <p className="text-gray-400 text-xs tracking-[0.4em] mb-8">SECURE ACCESS</p>
+                        <input type="password" value={auth} onChange={e => setAuth(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()}
+                            className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-center text-white outline-none mb-4 font-mono tracking-widest placeholder-gray-700" placeholder="••••" />
+                        <button onClick={login} className="w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-gray-200 transition mb-4">AUTHENTICATE</button>
+                    </div>
+                </div>
+            );
+
+            if (!data) return <LoadingScreen />;
+
+            return (
+                <div className="flex h-screen relative z-10 text-sm">
+                    <Starfield />
+
+                    {/* Mobile Menu Button */}
+                    <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="mobile-menu-btn">
+                        <svg width="24" height="24" fill="none" stroke="white" strokeWidth="2">
+                            <path d="M3 12h18M3 6h18M3 18h18" />
+                        </svg>
+                    </button>
+
+                    {/* Mobile Overlay */}
+                    <div className={`mobile-overlay ${mobileMenuOpen ? 'show' : ''}`} onClick={() => setMobileMenuOpen(false)}></div>
+
+                    {/* Sidebar */}
+                    <SafeMotion.div initial={{ x: -50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className={`sidebar w-64 glass border-r-0 border-white/10 flex flex-col p-6 z-20 ${mobileMenuOpen ? 'open' : ''}`}>
+                        <div className="mb-10 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded bg-gradient-to-tr from-accent to-blue-600"></div>
+                            <span className="text-xl font-bold tracking-tight">NEBULA</span>
+                        </div>
+                        <nav className="space-y-1 flex-1">
+                            {['dashboard', 'users', 'licenses', 'logs', 'settings'].map(id => (
+                                <button key={id} onClick={() => { setView(id); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all capitalize font-medium ${view === id ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+                                    {id}
+                                </button>
+                            ))}
+                        </nav>
+                        <button onClick={downloadDB} className="text-xs text-center font-bold tracking-widest border border-white/10 bg-white/5 p-3 rounded mb-2 hover:bg-white/10 hover:border-accent/50 transition">💾 BACKUP DATABASE</button>
+                        <button onClick={() => window.location.reload()} className="text-xs text-red-500 font-bold tracking-widest border border-red-900/30 p-2 rounded hover:bg-red-900/20 text-center mt-2">TERMINATE SESSION</button>
+                    </SafeMotion.div>
+
+                    <main className="main-content flex-1 p-8 overflow-y-auto">
+                        <header className="flex justify-between items-end mb-8 pb-4 border-b border-white/5">
+                            <div>
+                                <h2 className="text-3xl font-bold text-white capitalize">{view}</h2>
+                                <p className="text-gray-500 text-xs font-mono mt-1">STATUS::ONLINE ::: PING::12ms</p>
+                            </div>
+                            <button onClick={refresh} className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded text-xs font-bold transition border border-white/10">SYNC DATA</button>
+                        </header>
+
+                        <SafeAnimatePresence mode="wait">
+                            <SafeMotion.div key={view} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                                {view === 'dashboard' && (
+                                    <div className="space-y-6">
+                                        <div className="grid grid-cols-4 gap-4">
+                                            <StatCard title="Total Beta Users" value={data.stats.total_users} sub="+100%" />
+                                            <StatCard title="Premium Conversion" value={((data.stats.premium_users / data.stats.total_users) * 100).toFixed(1) + '%'} sub="Stable" trend="up" />
+                                            <StatCard title="Global Questions" value={data.stats.total_questions} sub="Engagement" trend="up" />
+                                            <StatCard title="Total Minutes" value={data.stats.total_minutes} sub="Usage" trend="up" />
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-6">
+                                            <div className="col-span-2 glass p-8 rounded-3xl border border-white/5">
+                                                <div className="flex justify-between items-start mb-8">
+                                                    <div>
+                                                        <h3 className="text-lg font-bold text-white tracking-tight">Node Load Balancer</h3>
+                                                        <p className="text-gray-500 text-xs">Real-time resource allocation across clusters</p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5 text-[10px] font-bold text-accent">
+                                                            <div className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse"></div> MASTER-01
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="h-64">
+                                                    {ChartsAvailable ? (
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <AreaChart data={[{ name: 'Mon', v: 4000, trend: 2400 }, { name: 'Tue', v: 3000, trend: 1398 }, { name: 'Wed', v: 5000, trend: 9800 }, { name: 'Thu', v: 2780, trend: 3908 }, { name: 'Fri', v: 6890, trend: 4800 }]}>
+                                                                <defs>
+                                                                    <linearGradient id="colorV" x1="0" y1="0" x2="0" y2="1">
+                                                                        <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                                                                        <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                                                                    </linearGradient>
+                                                                </defs>
+                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
+                                                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#4B5563', fontSize: 10 }} dy={10} />
+                                                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#4B5563', fontSize: 10 }} />
+                                                                <Tooltip content={<CustomTooltip />} />
+                                                                <Area type="monotone" dataKey="v" stroke="#8B5CF6" strokeWidth={3} fillOpacity={1} fill="url(#colorV)" />
+                                                            </AreaChart>
+                                                        </ResponsiveContainer>
+                                                    ) : <ChartPlaceholder />}
+                                                </div>
+                                            </div>
+                                            <div className="glass p-8 rounded-3xl border border-white/5 flex flex-col">
+                                                <h3 className="text-lg font-bold text-white tracking-tight mb-1 text-center">Plan Entropy</h3>
+                                                <p className="text-gray-500 text-[10px] text-center mb-8 uppercase tracking-widest font-black">Conversion Metrics</p>
+                                                <div className="flex-1 min-h-0 flex items-center justify-center overflow-visible">
+                                                    {ChartsAvailable ? (
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <PieChart>
+                                                                <Pie
+                                                                    data={[{ name: 'Free', value: data.stats.total_users - data.stats.premium_users }, { name: 'Premium', value: data.stats.premium_users }]}
+                                                                    innerRadius="70%"
+                                                                    outerRadius="90%"
+                                                                    paddingAngle={8}
+                                                                    dataKey="value"
+                                                                    stroke="none"
+                                                                >
+                                                                    <Cell fill="#1F2937" />
+                                                                    <Cell fill="#8B5CF6" />
+                                                                </Pie>
+                                                                <Tooltip content={<CustomTooltip />} />
+                                                            </PieChart>
+                                                        </ResponsiveContainer>
+                                                    ) : <ChartPlaceholder />}
+                                                </div>
+                                                <div className="mt-6 space-y-3">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="flex items-center gap-2 text-gray-500"><div className="w-2 h-2 rounded-full bg-accent"></div> PREMIUM</span>
+                                                        <span className="text-white font-bold">{data.stats.premium_users}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="flex items-center gap-2 text-gray-400"><div className="w-2 h-2 rounded-full bg-gray-700"></div> FREE TRIAL</span>
+                                                        <span className="text-white font-bold">{data.stats.total_users - data.stats.premium_users}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {view === 'users' && (
+                                    <React.Fragment>
+                                        <div className="glass rounded-2xl overflow-hidden border border-white/5">
+                                            <table className="w-full text-left text-sm text-gray-400">
+                                                <thead className="bg-white/5 uppercase text-xs font-bold text-gray-500"><tr><th className="p-4">User</th><th className="p-4">Credits</th><th className="p-4">Questions</th><th className="p-4">Minutes</th><th className="p-4">Plan</th><th className="p-4">Status</th><th className="p-4">Created</th><th className="p-4 text-right">Actions</th></tr></thead>
+                                                <tbody className="divide-y divide-white/5">{data.users.map(u => (<tr key={u.id} className="hover:bg-white/5 transition"><td className="p-4 text-white font-medium">{u.email}<div className="text-[10px] text-gray-600 font-mono mt-0.5">{u.hwid}</div></td><td className="p-4"><span className="text-accent font-mono font-bold">{u.credits}</span></td><td className="p-4 text-gray-300 font-mono">{u.total_questions || 0}</td><td className="p-4 text-gray-300 font-mono">{u.total_minutes || 0}</td><td className="p-4"><span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${u.plan.includes('PREMIUM') ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-white/10 text-gray-400 border-white/10'}`}>{u.plan}</span></td><td className="p-4"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${u.status === 'ACTIVE' ? 'text-green-500' : 'text-red-500'}`}>{u.status}</span></td><td className="p-4 font-mono text-xs">{new Date(u.created).toLocaleDateString()}</td><td className="p-4 text-right space-x-2"><button onClick={() => setEditingUser(u)} className="text-blue-500 hover:text-blue-400 hover:underline text-xs">Edit</button><button onClick={() => delUser(u.id)} className="text-red-500 hover:text-red-400 hover:underline text-xs">Delete</button></td></tr>))}</tbody>
+                                            </table>
+                                        </div>
+
+                                        {editingUser && (
+                                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setEditingUser(null)}>
+                                                <div className="glass p-8 rounded-3xl w-[500px] border border-white/10" onClick={e => e.stopPropagation()}>
+                                                    <h3 className="text-2xl font-bold text-white mb-6">Edit User</h3>
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-400 block mb-2">EMAIL</label>
+                                                            <input type="text" value={editingUser.email} onChange={e => setEditingUser({ ...editingUser, email: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white font-mono text-sm" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-400 block mb-2">CREDITS</label>
+                                                            <input type="number" value={editingUser.credits} onChange={e => {
+                                                                const val = +e.target.value;
+                                                                const updates = { credits: val };
+                                                                if (val > 0) {
+                                                                    updates.plan = 'PREMIUM';
+                                                                    updates.status = 'ACTIVE';
+                                                                }
+                                                                setEditingUser({ ...editingUser, ...updates });
+                                                            }} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white font-mono text-sm focus:border-accent outline-none" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-400 block mb-2">PLAN</label>
+                                                            <select value={editingUser.plan} onChange={e => setEditingUser({ ...editingUser, plan: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white outline-none focus:border-accent">
+                                                                <option value="FREE_TRIAL">FREE TRIAL</option>
+                                                                <option value="PREMIUM">PREMIUM</option>
+                                                                <option value="ENTERPRISE">ENTERPRISE</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-400 block mb-2">STATUS</label>
+                                                            <select value={editingUser.status} onChange={e => setEditingUser({ ...editingUser, status: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white outline-none focus:border-accent">
+                                                                <option value="ACTIVE">ACTIVE</option>
+                                                                <option value="EXPIRED">EXPIRED</option>
+                                                                <option value="SUSPENDED">SUSPENDED</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-400 block mb-2">TRIAL END DATE</label>
+                                                            <input type="date" value={editingUser.trial_end ? editingUser.trial_end.split('T')[0] : ''} onChange={e => setEditingUser({ ...editingUser, trial_end: e.target.value + 'T00:00:00' })} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white outline-none focus:border-accent" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-3 mt-8">
+                                                        <button onClick={() => updateUser(editingUser)} className="flex-1 bg-accent hover:bg-purple-600 text-white font-bold py-3 rounded-lg transition">Save Changes</button>
+                                                        <button onClick={() => setEditingUser(null)} className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-lg transition">Cancel</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </React.Fragment>
+                                )}
+                                {view === 'licenses' && (
+                                    <div className="space-y-6">
+                                        <div className="glass p-6 rounded-2xl flex gap-4 items-end border border-white/5 bg-gradient-to-br from-white/5 to-transparent">
+                                            <div><label className="text-xs font-bold text-gray-500 block mb-1">QUANTITY</label><input id="c" className="bg-black/40 border border-white/10 rounded-lg p-2.5 text-white w-24 font-mono text-center focus:border-accent outline-none transition" defaultValue={1} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500 block mb-1">ALIDITY (DAYS)</label><input id="d" className="bg-black/40 border border-white/10 rounded-lg p-2.5 text-white w-24 font-mono text-center focus:border-accent outline-none transition" defaultValue={30} /></div>
+                                            <button onClick={() => genKey(document.getElementById('c').value, document.getElementById('d').value)} className="bg-accent hover:bg-accentHover text-white px-8 py-2.5 rounded-lg font-bold shadow-lg shadow-accent/20 transition-all transform hover:scale-105">✨ GENERATE KEYS</button>
+                                        </div>
+                                        <div className="glass rounded-2xl overflow-hidden border border-white/5">
+                                            <table className="w-full text-left text-sm text-gray-400">
+                                                <thead className="bg-white/5 uppercase text-xs font-bold text-gray-500"><tr><th className="p-4">License Key</th><th className="p-4">Status</th><th className="p-4">Notes</th><th className="p-4">Data</th></tr></thead>
+                                                <tbody className="divide-y divide-white/5">{data.keys.map(k => (<tr key={k.key} className="hover:bg-white/5 transition"><td className="p-4 font-mono text-accent">{k.key}</td><td className="p-4 text-white"><span className="bg-green-500/10 text-green-500 border border-green-500/20 px-2 py-0.5 rounded text-[10px] font-bold">{k.status}</span></td><td className="p-4 text-gray-500 italic">{k.notes}</td><td className="p-4 font-mono text-xs text-gray-600">{new Date(k.created).toLocaleDateString()}</td></tr>))}</tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                                {view === 'logs' && (
+                                    <div className="glass rounded-2xl p-6 space-y-3 border border-white/5">
+                                        <h3 className="text-white font-bold mb-4">SYSTEM AUDIT LOG</h3>
+                                        <div className="max-h-[600px] overflow-y-auto pr-2 space-y-3">
+                                            {data.stats.recent_logs.map(log => (<div key={log.id} className="group flex gap-4 p-3 rounded-lg hover:bg-white/5 transition border border-transparent hover:border-white/5"><div className="w-1 bg-accent/50 rounded-full h-auto"></div><div className="flex-1"><div className="flex justify-between"><p className="text-xs text-accent font-bold uppercase tracking-wider">{log.event}</p><span className="text-[10px] font-mono text-gray-600">{new Date(log.time).toLocaleString()}</span></div><p className="text-gray-300 text-sm mt-1">{log.desc}</p></div></div>))}
+                                        </div>
+                                    </div>
+                                )}
+                                {view === 'settings' && (
+                                    <div className="max-w-2xl mx-auto space-y-6 pb-20">
+                                        <div className="glass p-8 rounded-3xl border border-white/10">
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <div className="p-2 bg-accent/10 rounded-lg">
+                                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="text-accent">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    </svg>
+                                                </div>
+                                                <h3 className="text-xl font-bold text-white">Desktop API Configuration</h3>
+                                            </div>
+
+                                            <div className="space-y-8">
+                                                {/* OpenAI */}
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">OpenAI API Key</label>
+                                                        <span className="text-[10px] text-gray-600 font-mono">sk-...</span>
+                                                    </div>
+                                                    <div className="flex gap-3">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="sk-..."
+                                                            value={data.config.OPENAI_API_KEY || ''}
+                                                            onChange={e => setData({
+                                                                ...data,
+                                                                config: { ...data.config, OPENAI_API_KEY: e.target.value }
+                                                            })}
+                                                            className="flex-1 bg-black/40 border border-white/10 rounded-xl p-3 text-white font-mono text-sm focus:border-accent outline-none transition-all"
+                                                        />
+                                                        <button
+                                                            onClick={async () => {
+                                                                const res = await api('/admin/config/update', 'POST', {
+                                                                    key: 'OPENAI_API_KEY',
+                                                                    value: data.config.OPENAI_API_KEY
+                                                                });
+                                                                if (res?.success) alert("OpenAI Key Updated!");
+                                                                refresh();
+                                                            }}
+                                                            className="bg-accent hover:bg-purple-600 text-white font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-accent/20 active:scale-95"
+                                                        >
+                                                            SAVE
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Gemini */}
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Gemini API Key</label>
+                                                        <span className="text-[10px] text-gray-600 font-mono">AIza...</span>
+                                                    </div>
+                                                    <div className="flex gap-3">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="AIza..."
+                                                            value={data.config.GEMINI_API_KEY || ''}
+                                                            onChange={e => setData({
+                                                                ...data,
+                                                                config: { ...data.config, GEMINI_API_KEY: e.target.value }
+                                                            })}
+                                                            className="flex-1 bg-black/40 border border-white/10 rounded-xl p-3 text-white font-mono text-sm focus:border-accent outline-none transition-all"
+                                                        />
+                                                        <button
+                                                            onClick={async () => {
+                                                                const res = await api('/admin/config/update', 'POST', {
+                                                                    key: 'GEMINI_API_KEY',
+                                                                    value: data.config.GEMINI_API_KEY
+                                                                });
+                                                                if (res?.success) alert("Gemini Key Updated!");
+                                                                refresh();
+                                                            }}
+                                                            className="bg-accent hover:bg-purple-600 text-white font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-accent/20 active:scale-95"
+                                                        >
+                                                            SAVE
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Groq */}
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Groq API Key</label>
+                                                        <span className="text-[10px] text-gray-600 font-mono">gsk_...</span>
+                                                    </div>
+                                                    <div className="flex gap-3">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="gsk_..."
+                                                            value={data.config.GROQ_API_KEY || ''}
+                                                            onChange={e => setData({
+                                                                ...data,
+                                                                config: { ...data.config, GROQ_API_KEY: e.target.value }
+                                                            })}
+                                                            className="flex-1 bg-black/40 border border-white/10 rounded-xl p-3 text-white font-mono text-sm focus:border-accent outline-none transition-all"
+                                                        />
+                                                        <button
+                                                            onClick={async () => {
+                                                                const res = await api('/admin/config/update', 'POST', {
+                                                                    key: 'GROQ_API_KEY',
+                                                                    value: data.config.GROQ_API_KEY
+                                                                });
+                                                                if (res?.success) alert("Groq Key Updated!");
+                                                                refresh();
+                                                            }}
+                                                            className="bg-accent hover:bg-purple-600 text-white font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-accent/20 active:scale-95"
+                                                        >
+                                                            SAVE
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-8 p-4 bg-white/5 rounded-2xl border border-white/5">
+                                                <p className="text-gray-500 text-[10px] leading-relaxed uppercase tracking-tighter">
+                                                    These keys are distributed to desktop clients via the core config heartbeat.
+                                                    Rotating these keys here will immediately affect all connected application instances.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="glass p-6 rounded-2xl border border-white/5 bg-white/[0.02]">
+                                            <div className="flex items-center gap-3 text-gray-500">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></div>
+                                                <p className="text-xs font-medium">Core system variables are currently synchronized.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </SafeMotion.div>
+                        </SafeAnimatePresence>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    {% endraw %}
+</body>
+
+</html>

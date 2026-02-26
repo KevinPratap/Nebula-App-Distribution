@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../nebula-react-ui"
+		}
+	],
+	"settings": {
+		"python.defaultInterpreterPath": "C:\\Users\\prata\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+		"terminal.integrated.cwd": "${workspaceFolder}"
+	}
+}

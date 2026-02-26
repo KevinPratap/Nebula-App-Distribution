@@ -1,0 +1,20 @@
+{
+    "name": "Nebula • AI Interview Assistant",
+    "short_name": "Nebula",
+    "start_url": "/dashboard",
+    "display": "standalone",
+    "background_color": "#030712",
+    "theme_color": "#030712",
+    "icons": [
+        {
+            "src": "/favicon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

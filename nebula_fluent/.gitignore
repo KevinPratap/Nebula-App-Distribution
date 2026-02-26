@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.spec
+build/
+dist/
+session.json
+settings.json
+logout_error.txt
+app_crash_log.txt
+venv/
+.env
