@@ -6,6 +6,7 @@ import threading
 import time
 import numpy as np
 import traceback
+import re
 
 # Stability Fixes for Windows
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -32,6 +33,8 @@ class SidecarEngine:
         self.transcript_buffer = [] 
         self.last_transcript_time = 0
         self.current_query = "" 
+        self.last_trigger_time = 0      # v26.0 Joining logic
+        self.last_trigger_text = ""      # v26.0 Joining logic
         
         self.audio.on_transcript_callback = self.on_transcript
         self.ai.on_response_callback = self.on_ai_response
@@ -86,32 +89,63 @@ class SidecarEngine:
         
         self.send_to_electron("transcript", {"text": text, "source": source, "buffered": True})
 
+    def _clean_stutters(self, text):
+        if not text: return ""
+        # Deduplicate adjacent identical words/phrases (v26.0)
+        text = re.sub(r'\b(\w+)(?:\s+\1\b)+', r'\1', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b(\w+\s+\w+)(?:\s+\1\b)+', r'\1', text, flags=re.IGNORECASE)
+        return text
+
+    def _is_fragment(self, text):
+        t = text.strip().lower()
+        if not t: return True
+        # Ends in a preposition or connecting word
+        if t.split()[-1] in ["the", "a", "an", "is", "are", "of", "to", "in", "with", "and", "or", "for", "from", "at", "by"]:
+            return True
+        # Very short and no question word
+        words = t.split()
+        if len(words) < 3 and not any(kw in t for kw in ["what", "how", "why", "who", "when", "?", "explain"]):
+            return True
+        return False
+
     def _buffer_watchdog(self):
         while True:
-            time.sleep(0.1) # v20.5 high-frequency check
+            time.sleep(0.1) 
             if not self.transcript_buffer: continue
             
-            time_since_last = time.time() - self.last_transcript_time
+            now = time.time()
+            time_since_last = now - self.last_transcript_time
             combined_text = " ".join(self.transcript_buffer).strip()
             
-            is_question = any(q in combined_text.lower() for q in ["?", "what", "how", "why", "when", "can you", "could you", "tell me"])
-            
+            is_question = any(q in combined_text.lower() for q in ["?", "what", "how", "why", "when", "can you", "could you", "tell me", "explain", "describe"])
             
             should_trigger = False
-            if "?" in combined_text: # INSTANT TRIGGER (v20.5)
+            # Determine threshold
+            threshold = 1.0 if is_question else 3.0
+            if self._is_fragment(combined_text):
+                threshold *= 2.0 # Wait longer for fragments (v26.0)
+
+            if "?" in combined_text: # INSTANT TRIGGER
                 should_trigger = True
-            elif is_question and time_since_last > 1.0: # More breathing room (v21.2)
-                should_trigger = True
-            elif time_since_last > 3.0: # More breathing room for statements
+            elif time_since_last > threshold:
                 should_trigger = True
                 
             if should_trigger:
-                if self.ai.is_generating:
-                    self.current_query += " " + combined_text
+                combined_text = self._clean_stutters(combined_text)
+                
+                # Contextual Coalescing (v26.0)
+                if now - self.last_trigger_time < 4.0:
+                    sys.stderr.write(f"DEBUG: Coalescing with last trigger: {self.last_trigger_text}\n")
+                    self.current_query = (self.last_trigger_text + " " + combined_text).strip()
                 else:
                     self.current_query = combined_text
                 
-                sys.stderr.write(f"DEBUG: Triggering AI with: \"{self.current_query}\"\n")
+                # Clean query one more time after merge
+                self.current_query = self._clean_stutters(self.current_query)
+                self.last_trigger_time = now
+                self.last_trigger_text = self.current_query
+
+                sys.stderr.write(f"DEBUG: Triggering AI: \"{self.current_query}\"\n")
                 sys.stderr.flush()
                 trigger_q = self.current_query
                 self.transcript_buffer = []
