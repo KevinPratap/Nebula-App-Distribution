@@ -30,8 +30,28 @@ declare global {
 
 type DrawerMode = 'response' | 'account' | 'settings' | 'strategy';
 
+// --- Animation Constants (Premium Suite v27.0) ---
 const SESSION_DURATION_MS = 15 * 60 * 1000; // 15 minutes (server-driven)
-const springTransition: any = { type: "spring", damping: 20, stiffness: 150 };
+
+const springGentle: any = { type: "spring", stiffness: 300, damping: 30 };
+const springQuick: any = { type: "spring", stiffness: 450, damping: 25 };
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.1 }
+  }
+};
+
+const pillVariants = {
+  hidden: { opacity: 0, scale: 0.9, y: 10 },
+  visible: {
+    opacity: 1, scale: 1, y: 0,
+    transition: springGentle
+  },
+  exit: { opacity: 0, scale: 0.9, y: 5, transition: { duration: 0.2 } }
+};
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "00:00";
@@ -148,7 +168,8 @@ function App() {
         setHistory(prev => {
           // Prevent exact duplicate questions stacking
           if (prev.length > 0 && prev[prev.length - 1].q === p.trigger_question) return prev;
-          return [...prev, { q: p.trigger_question, a: p.text, strategy: p.strategy || "Standard" }];
+          const newHistory = [...prev, { q: p.trigger_question, a: p.text, strategy: p.strategy || "Standard" }];
+          return newHistory.slice(-4); // Keep maximum 4 pills v26.1
         });
       }
 
@@ -315,12 +336,13 @@ function App() {
   return (
     <div className={`app-container platform-${platform === 'darwin' ? 'mac' : 'win'} ${settings.light_mode ? 'light-mode' : ''}`}>
 
-      {/* Floating Pill */}
+      {/* Main Pill — always centered */}
       <motion.div
-        className="floating-pill"
-        initial={false}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={springTransition}
+        layout
+        className={`floating-pill ${!isAuthorized ? 'pill-locked' : 'pill-active'}`}
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={springGentle}
       >
         <div className="pill-content">
           <div className="pill-left">
@@ -387,9 +409,15 @@ function App() {
       </motion.div>
 
       {/* Multi-Pill Breadcrumbs (v19.0) */}
-      <AnimatePresence>
+      <AnimatePresence mode="popLayout">
         {(transcript || history.length > 0) && (
-          <div className="sub-pill-stack">
+          <motion.div
+            layout
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="sub-pill-stack"
+          >
             {history.map((item, idx) => {
               // Extract core question for display (concise v20.9)
               const extractCoreQuestion = (text: string) => {
@@ -406,11 +434,12 @@ function App() {
 
               return (
                 <motion.div
+                  layout
                   key={`hist-${idx}-${item.q.substring(0, 10)}`}
                   className="sub-pill-item breadcrumb no-drag"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  whileHover={{ backgroundColor: 'rgba(70, 70, 70, 0.6)', borderColor: 'var(--accent-primary)' }}
+                  variants={pillVariants}
+                  whileHover={{ scale: 1.02, backgroundColor: 'rgba(70, 70, 70, 0.6)', borderColor: 'var(--accent-primary)' }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setAiResponse(item.a);
                     setDetectedStrategy(item.strategy);
@@ -425,15 +454,15 @@ function App() {
 
             {transcript && (
               <motion.div
+                layout
                 key="active-transcript-pill"
                 className="sub-pill-item active-transcript"
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
+                variants={pillVariants}
               >
                 <div className="sub-pill-text">{transcript}</div>
               </motion.div>
             )}
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -441,11 +470,12 @@ function App() {
       <AnimatePresence>
         {drawerOpen && (
           <motion.div
+            layout
             className="drawer-container"
-            initial={{ y: -10, opacity: 0, scale: 0.99 }}
+            initial={{ y: -20, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: -10, opacity: 0, scale: 0.99 }}
-            transition={springTransition}
+            exit={{ y: -10, opacity: 0, scale: 0.98 }}
+            transition={springGentle}
           >
             {/* Account */}
             {drawerMode === 'account' && (
@@ -543,7 +573,11 @@ function App() {
                   <div className="account-panel">
                     <div className="account-avatar-row">
                       <div className="account-avatar">
-                        {account.display_name?.charAt(0).toUpperCase() || 'N'}
+                        {account.avatar_url ? (
+                          <img src={account.avatar_url} alt="Profile" className="avatar-img" />
+                        ) : (
+                          account.display_name?.charAt(0).toUpperCase() || 'N'
+                        )}
                       </div>
                       <div className="account-info">
                         <p className="account-name">{account.display_name}</p>
@@ -752,13 +786,15 @@ function App() {
 
             {/* Response Stream (Answers Only v18.0) */}
             {drawerMode === 'response' && aiResponse && (
-              <div className="view-content response-drawer-content">
-                <div className="view-header">
-                  <h2>NEBULA RESPONSE</h2>
-                  <Sparkles size={16} color="var(--accent-primary)" />
-                </div>
-                <div className="nebula-response-card">
-                  <ResponseRenderer text={aiResponse} />
+              <div className="drawer-view-mask">
+                <div className="view-content response-drawer-content">
+                  <div className="view-header">
+                    <h2>NEBULA RESPONSE</h2>
+                    <Sparkles size={16} color="var(--accent-primary)" />
+                  </div>
+                  <div className="nebula-response-card">
+                    <ResponseRenderer text={aiResponse} />
+                  </div>
                 </div>
               </div>
             )}
