@@ -252,9 +252,12 @@ class SidecarEngine:
                 self.send_to_electron("session-started", {"success": False, "message": msg})
 
         elif action == "update-context":
-            self.ai.resume_context = payload
-            self.send_to_electron("status", {"msg": "Context Synced"})
-            sys.stderr.write(f"DEBUG: Context updated ({len(payload)} chars)\n")
+            if payload or not self.ai.resume_context:
+                self.ai.resume_context = payload
+                self.send_to_electron("status", {"msg": "Context Synced"})
+                sys.stderr.write(f"DEBUG: Context updated ({len(payload)} chars)\n")
+            else:
+                sys.stderr.write("DEBUG: Ignored empty context update (keep existing)\n")
             sys.stderr.flush()
 
         elif action == "parse-file":

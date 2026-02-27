@@ -36,7 +36,6 @@ type DrawerMode = 'response' | 'account' | 'settings' | 'strategy';
 const SESSION_DURATION_MS = 15 * 60 * 1000; // 15 minutes (server-driven)
 
 const springGentle: any = { type: "spring", stiffness: 300, damping: 30 };
-const springQuick: any = { type: "spring", stiffness: 450, damping: 25 };
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -428,7 +427,6 @@ function App() {
                 if (!text) return "";
                 // Filter out common filler words and keep only the core command/question
                 let clean = text.replace(/NEW\s+/i, '').replace(/[?*]/g, '').trim();
-                const commonPhrases = ["can you", "could you", "explain", "tell me about", "what is", "how do I"];
 
                 // For the button, keep it very short
                 const words = clean.split(' ');
