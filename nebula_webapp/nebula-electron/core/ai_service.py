@@ -17,10 +17,11 @@ class AIService:
         self.conversation_history = []
         self.resume_context = ""
         self.job_context = ""
-        self.current_mode = "General" 
+        self.current_mode = "Auto" 
         self._worker = None
         self.is_generating = False
         self._stop_event = threading.Event()
+        self.interview_mode = True # Enabled by default v30.2
         
         # Callbacks (Replaces Signals)
         self.on_response_callback = None # func(text, mode)
@@ -69,52 +70,69 @@ class AIService:
         return "Behavioral (Soft skills)"
 
     def generate_response(self, question):
-        """Start async generation with mode-specific structured instructions"""
+        """Start async generation with structured message lists (v30.7)"""
         if self.is_generating:
             self.cancel_generation()
+            import time
             time.sleep(0.1) # Brief pause for cleanup
 
         self._stop_event.clear()
         self.is_generating = True
         
-        history_text = self._format_history()
-        
+        # DEBUG: Trace context flow
+        sys.stderr.write(f"DEBUG: Generating AI Response. Resume Context Len: {len(self.resume_context)}\n")
+        if self.resume_context:
+            sys.stderr.write(f"DEBUG: First 100 chars of context: {self.resume_context[:100].strip()}\n")
+        sys.stderr.flush()
+
         effective_mode = self.current_mode
         if self.current_mode == "Auto":
             effective_mode = self._detect_mode_for_question(question)
         
         # Mode selective instructions
         mode_instructions = {
-            "Coding interview": "INTERVIEW MODE: TECHNICAL CODING. Structure: 1. Approach 2. Complexity 3. Edge Cases.",
-            "System design": "INTERVIEW MODE: SYSTEM DESIGN. Focus on Scalability and Trade-offs.",
-            "Behavioral (Soft skills)": "INTERVIEW MODE: BEHAVIORAL. Use STAR Method.",
+            "Coding interview": "Focus on implementation, time/space complexity, and edge cases.",
+            "System design": "Focus on high-level architecture, scalability, and technical trade-offs.",
+            "Behavioral (Soft skills)": "Use the STAR method (Situation, Task, Action, Result) for structured storytelling.",
         }
-        mode_instruction = mode_instructions.get(effective_mode, "Style: Professional and natural.")
+        mode_instruction = mode_instructions.get(effective_mode, "Style: Professional, natural, and helpful.")
 
-        if getattr(self, 'interview_mode', False):
-             system_instruction = (
-                 f"Context: Candidate Kevin Pratap ({effective_mode}). "
-                 f"Instruction: {mode_instruction} Answer directly with 'I'. Stay concise (2-4 sentences)."
-             )
-        else:
-             system_instruction = f"Task: Helpful assistant. Mode: {effective_mode}."
-
-        full_context_block = f"Resume:\n{self.resume_context[:2000]}\n" if self.resume_context else ""
+        messages = []
         
-        prompt = f"[SYSTEM: {system_instruction}]\n{full_context_block}\n{history_text}\nInterviewer: \"{question}\""
+        # 1. Base System Instruction (Minimal)
+        system_content = (
+            f"You are a candidate in a {effective_mode} interview. {mode_instruction} "
+            "Speak naturally and concisely (2-4 sentences max). Never mention being an AI."
+        )
+        messages.append({"role": "system", "content": system_content})
 
-        self._worker = AIWorker(self.groq_key, self.gemini_key, self.openai_key, prompt, self._stop_event)
+        # 2. Identity Priming (Simulated Start - highly effective for Llama models)
+        if self.resume_context:
+            messages.append({"role": "user", "content": f"Please memorize this resume and adopt it as YOUR OWN identity for this interview:\n\n{self.resume_context[:5000]}"})
+            messages.append({"role": "assistant", "content": "Understood. I have fully memorized this profile. I am now acting as the candidate described in this resume. I will answer all questions from my personal perspective using 'I' and 'me'."})
+        else:
+            messages.append({"role": "user", "content": "I haven't uploaded my resume yet, but I'm ready to start. Please keep it generic but professional."})
+            messages.append({"role": "assistant", "content": "Understood. I will answer as a professional candidate with a general background until you provide your resume."})
+
+        # 3. History
+        for qa in self.conversation_history[-2:]:
+             messages.append({"role": "user", "content": qa['q']})
+             messages.append({"role": "assistant", "content": qa['a']})
+        
+        # 4. Final Question (User message)
+        messages.append({"role": "user", "content": question})
+
+        # DEBUG: Trace final prompt structure
+        sys.stderr.write(f"DEBUG: Internal Messages Count: {len(messages)}\n")
+        if self.resume_context:
+            sys.stderr.write(f"DEBUG: Identity Priming active ({len(self.resume_context)} chars)\n")
+        sys.stderr.flush()
+
+        self._worker = AIWorker(self.groq_key, self.gemini_key, self.openai_key, messages, self._stop_event)
         self._worker.on_chunk = lambda txt: self.on_chunk_callback(txt, effective_mode) if self.on_chunk_callback else None
         self._worker.on_finished = lambda res, err: self._on_worker_finished(res, err, question, effective_mode)
         
         threading.Thread(target=self._worker.run, daemon=True).start()
-        
-    def _format_history(self):
-        if not self.conversation_history: return ""
-        hist = "\n--- HISTORY ---\n"
-        for qa in self.conversation_history[-3:]:
-             hist += f"Q: {qa['q']}\nA: {qa['a'][:80]}...\n"
-        return hist
         
     def _on_worker_finished(self, result, error, question, effective_mode):
         self.is_generating = False
@@ -127,11 +145,11 @@ class AIService:
                 self.on_error_callback(error)
 
 class AIWorker:
-    def __init__(self, groq_key, gemini_key, openai_key, prompt, stop_event):
+    def __init__(self, groq_key, gemini_key, openai_key, messages, stop_event):
         self.groq_key = groq_key
         self.gemini_key = gemini_key
         self.openai_key = openai_key
-        self.prompt = prompt
+        self.messages = messages
         self.stop_event = stop_event
         self.on_chunk = None
         self.on_finished = None
@@ -144,7 +162,7 @@ class AIWorker:
                 client = Groq(api_key=self.groq_key)
                 stream = client.chat.completions.create(
                     model="llama-3.1-8b-instant",
-                    messages=[{"role": "user", "content": self.prompt}],
+                    messages=self.messages,
                     max_tokens=800,
                     stream=True
                 )
@@ -158,7 +176,7 @@ class AIWorker:
                 if self.on_finished: self.on_finished(full_text, None)
                 return
             except Exception as e:
+                import sys
                 sys.stderr.write(f"DEBUG: Groq failed: {e}\n")
 
-        # Fallback Gemini/OpenAI removed for brevity in this scratch version for sidecar usage
         if self.on_finished: self.on_finished(None, "AI Request Failed")

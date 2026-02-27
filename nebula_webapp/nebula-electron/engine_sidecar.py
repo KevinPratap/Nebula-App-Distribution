@@ -12,6 +12,13 @@ import re
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["OMP_NUM_THREADS"] = "1" 
 
+try:
+    import pypdf
+    from docx import Document
+except ImportError:
+    pypdf = None
+    Document = None
+
 if sys.stdout: sys.stdout.reconfigure(line_buffering=True)
 if sys.stdin: sys.stdin.reconfigure(line_buffering=True)
 
@@ -247,6 +254,23 @@ class SidecarEngine:
         elif action == "update-context":
             self.ai.resume_context = payload
             self.send_to_electron("status", {"msg": "Context Synced"})
+            sys.stderr.write(f"DEBUG: Context updated ({len(payload)} chars)\n")
+            sys.stderr.flush()
+
+        elif action == "parse-file":
+            path = payload
+            text = self._extract_text_from_file(path)
+            if text:
+                self.ai.resume_context = text
+                self.send_to_electron("context-fetched-received", {"text": text})
+                self.send_to_electron("status", {"msg": "File Parsed & Synced"})
+            else:
+                self.send_to_electron("error-received", {"msg": "Failed to parse file format"})
+
+        elif action == "fetch-context":
+            # URL Scraping logic (v30.0)
+            url = payload
+            threading.Thread(target=self._scrape_url, args=(url,), daemon=True).start()
 
         elif action == "get-settings":
             self.send_to_electron("settings-data", self.settings.settings)
@@ -258,6 +282,70 @@ class SidecarEngine:
 
         elif action == "fake-transcript":
             self.on_transcript(payload, "Manual")
+
+    def _extract_text_from_file(self, path):
+        sys.stderr.write(f"DEBUG: Extracting text from: {path}\n")
+        sys.stderr.flush()
+        try:
+            ext = os.path.splitext(path)[1].lower()
+            sys.stderr.write(f"DEBUG: Extension detected: {ext}\n")
+            sys.stderr.flush()
+            if ext == '.txt':
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    return f.read()
+            elif ext == '.pdf':
+                if pypdf:
+                    reader = pypdf.PdfReader(path)
+                    text = ""
+                    for page in reader.pages:
+                        extracted = page.extract_text()
+                        if extracted:
+                            text += extracted + "\n"
+                    sys.stderr.write(f"DEBUG: PDF Extraction complete. Chars: {len(text)}\n")
+                    sys.stderr.flush()
+                    return text
+                sys.stderr.write("DEBUG: pypdf library NOT AVAILABLE\n")
+                sys.stderr.flush()
+                return "PDF library not available"
+            elif ext in ['.doc', '.docx']:
+                if Document:
+                    doc = Document(path)
+                    text = "\n".join([para.text for para in doc.paragraphs])
+                    sys.stderr.write(f"DEBUG: Word Extraction complete. Chars: {len(text)}\n")
+                    sys.stderr.flush()
+                    return text
+                sys.stderr.write("DEBUG: python-docx library NOT AVAILABLE\n")
+                sys.stderr.flush()
+                return "Word library not available"
+            return None
+        except Exception as e:
+            sys.stderr.write(f"ERROR parsing file {path}: {str(e)}\n")
+            sys.stderr.flush()
+            return None
+
+    def _scrape_url(self, url):
+        try:
+            self.send_to_electron("status", {"msg": "Scraping URL..."})
+            resp = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+            if resp.status_code == 200:
+                # Remove script/style tags with regex
+                from re import sub
+                text = sub(r'<(script|style).*?>.*?</\1>', '', resp.text, flags=sub('D', '', 'is'))
+                # Pull visible text
+                text = sub(r'<.*?>', ' ', text)
+                text = sub(r'\s+', ' ', text).strip()
+                # Safeguard length
+                text = text[:5000]
+                self.send_to_electron("context-fetched", {"text": text, "url": url})
+                self.send_to_electron("status", {"msg": "URL Context Parsed"})
+                # Auto-sync it to AI service
+                self.ai.resume_context = text
+            else:
+                self.send_to_electron("error", {"msg": f"URL Load Failed: {resp.status_code}"})
+                self.send_to_electron("status", {"msg": "Nebula Ready"})
+        except Exception as e:
+            self.send_to_electron("error", {"msg": f"Scrape Error: {str(e)}"})
+            self.send_to_electron("status", {"msg": "Nebula Ready"})
 
 if __name__ == "__main__":
     engine = SidecarEngine()

@@ -187,10 +187,20 @@ ipcMain.handle('open-file-dialog', async () => {
         filters: [{ name: 'Documents', extensions: ['txt', 'pdf', 'doc', 'docx'] }]
     });
     if (!canceled && filePaths.length > 0) {
-        try {
-            return readFileSync(filePaths[0], 'utf-8');
-        } catch (e) {
-            return null;
+        const filePath = filePaths[0];
+        const ext = filePath.split('.').pop().toLowerCase();
+
+        if (ext === 'txt') {
+            try {
+                return readFileSync(filePath, 'utf-8');
+            } catch (e) {
+                console.error("Main: File read error:", e);
+                return null;
+            }
+        } else {
+            // PDF or Word — let sidecar handle it
+            console.log(`Main: Delegating binary parsing for: ${filePath}`);
+            return { type: 'link', path: filePath };
         }
     }
     return null;

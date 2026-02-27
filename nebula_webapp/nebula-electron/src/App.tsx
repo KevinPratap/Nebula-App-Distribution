@@ -472,7 +472,7 @@ function App() {
 
       {/* Drawer */}
       <AnimatePresence>
-        {drawerOpen && (
+        {drawerOpen && (drawerMode !== 'response' || aiResponse) && (
           <motion.div
             layout
             className="drawer-container"
@@ -633,8 +633,17 @@ function App() {
                   <h2>STRATEGY</h2>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button className="btn-premium" onClick={async () => {
-                      const c = await window.electron.ipcRenderer.invoke('open-file-dialog');
-                      if (c) setContextText(c);
+                      const res = await window.electron.ipcRenderer.invoke('open-file-dialog');
+                      if (res) {
+                        if (typeof res === 'object' && res.type === 'link') {
+                          // PDF/Word — Delegate to Sidecar Parser
+                          window.electron.ipcRenderer.send('send-to-sidecar', { action: 'parse-file', payload: res.path });
+                        } else {
+                          // Simple Text
+                          setContextText(res);
+                          window.electron.ipcRenderer.send('send-to-sidecar', { action: 'update-context', payload: res });
+                        }
+                      }
                     }}>
                       <Upload size={14} /> Resume
                     </button>
@@ -686,7 +695,7 @@ function App() {
                   />
                   <button className="btn-premium btn-accent" style={{ color: 'black' }} onClick={() => {
                     window.electron.ipcRenderer.send('send-to-sidecar', { action: 'update-context', payload: contextText });
-                    setDrawerMode('response');
+                    setDrawerOpen(false); // Fix: Dismiss drawer on manual sync v30.5
                   }}>
                     SYNC CONTEXT
                   </button>
