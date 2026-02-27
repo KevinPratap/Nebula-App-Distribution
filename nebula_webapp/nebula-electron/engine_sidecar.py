@@ -159,12 +159,12 @@ class SidecarEngine:
                 self.send_to_electron("status", {"msg": "Nebula: Thinking..."})
                 self.ai.generate_response(trigger_q)
 
-    def on_ai_response(self, response, mode=""):
+    def on_ai_response(self, response, mode="", question=""):
         self.send_to_electron("ai-response", {
             "text": response, 
             "provider": "Groq", 
             "strategy": mode,
-            "trigger_question": self.current_query # Restore History (v21.0)
+            "trigger_question": question or self.current_query
         })
         self.send_to_electron("status", {"msg": "Nebula Ready"})
         self.current_query = ""

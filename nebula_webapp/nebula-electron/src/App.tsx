@@ -155,24 +155,28 @@ function App() {
 
     window.electron.ipcRenderer.on('transcript-received', (t: any) => {
       console.log("UI: Transcription Received:", t.text);
-      setTranscript(t.text);
-      // Removed clearing aiResponse here to prevent flickering/loss of response
+      if (t.text && t.text.trim() !== "") {
+        setTranscript(t.text);
+      }
     });
 
     window.electron.ipcRenderer.on('ai-response-received', (p: any) => {
       console.log("UI: AI Response Received (Length:", p.text?.length, ")");
       setAiResponse(p.text);
-      setTranscript(""); // Clear transcript to prevent duplicate pills v23.2
 
-      // Update History Stack (v20.0 Persistent Buttons)
+      // Update History Stack FIRST (v20.0 Persistent Buttons)
       if (p.text && p.trigger_question) {
         setHistory(prev => {
           // Prevent exact duplicate questions stacking
           if (prev.length > 0 && prev[prev.length - 1].q === p.trigger_question) return prev;
           const newHistory = [...prev, { id: Date.now(), q: p.trigger_question, a: p.text, strategy: p.strategy || "Standard" }];
+          console.log("UI: History Stack Updated. Size:", newHistory.length);
           return newHistory.slice(-4); // Keep maximum 4 pills v26.1
         });
       }
+
+      // Clear transcript LAST to ensure seamless hand-off
+      setTranscript("");
 
       if (p.strategy) {
         setDetectedStrategy(p.strategy);
@@ -411,14 +415,15 @@ function App() {
       </motion.div>
 
       {/* Multi-Pill Breadcrumbs (v19.0) */}
-      <AnimatePresence mode="popLayout">
+      <AnimatePresence>
         {(transcript || history.length > 0) && (
           <motion.div
+            key="pill-stack-root"
             layout
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             className="sub-pill-stack"
+            style={{ zIndex: 10 }}
           >
             {history.map((item) => {
               // Extract core question for display (concise v20.9)
@@ -852,7 +857,7 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   )
 }
 

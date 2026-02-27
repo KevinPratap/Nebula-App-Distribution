@@ -132,17 +132,25 @@ class AIService:
         self._worker.on_chunk = lambda txt: self.on_chunk_callback(txt, effective_mode) if self.on_chunk_callback else None
         self._worker.on_finished = lambda res, err: self._on_worker_finished(res, err, question, effective_mode)
         
+        # Signal UI to clear for new response
+        if self.on_chunk_callback:
+            self.on_chunk_callback("", effective_mode)
+        
         threading.Thread(target=self._worker.run, daemon=True).start()
         
     def _on_worker_finished(self, result, error, question, effective_mode):
         self.is_generating = False
-        if result:
-            self.conversation_history.append({'q': question, 'a': result})
-            if self.on_response_callback:
-                self.on_response_callback(result, effective_mode)
-        elif error and not self._stop_event.is_set():
-            if self.on_error_callback:
-                self.on_error_callback(error)
+        try:
+            if result:
+                self.conversation_history.append({'q': question, 'a': result})
+                if self.on_response_callback:
+                    self.on_response_callback(result, effective_mode, question)
+            elif error and not self._stop_event.is_set():
+                if self.on_error_callback:
+                    self.on_error_callback(error)
+        except Exception as e:
+            sys.stderr.write(f"DEBUG: Error in worker finished callback: {e}\n")
+            sys.stderr.flush()
 
 class AIWorker:
     def __init__(self, groq_key, gemini_key, openai_key, messages, stop_event):
