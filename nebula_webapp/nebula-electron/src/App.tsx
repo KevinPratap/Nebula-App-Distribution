@@ -73,7 +73,7 @@ function App() {
 
   const [transcript, setTranscript] = useState("")
   const [aiResponse, setAiResponse] = useState("")
-  const [history, setHistory] = useState<{ q: string, a: string, strategy: string }[]>([])
+  const [history, setHistory] = useState<{ id: number, q: string, a: string, strategy: string }[]>([])
   const [account, setAccount] = useState<any>({ display_name: "", email: "", credits: 0, plan: "GUEST" })
   const [contextText, setContextText] = useState("")
   const [detectedStrategy, setDetectedStrategy] = useState<string | null>(null)
@@ -169,7 +169,7 @@ function App() {
         setHistory(prev => {
           // Prevent exact duplicate questions stacking
           if (prev.length > 0 && prev[prev.length - 1].q === p.trigger_question) return prev;
-          const newHistory = [...prev, { q: p.trigger_question, a: p.text, strategy: p.strategy || "Standard" }];
+          const newHistory = [...prev, { id: Date.now(), q: p.trigger_question, a: p.text, strategy: p.strategy || "Standard" }];
           return newHistory.slice(-4); // Keep maximum 4 pills v26.1
         });
       }
@@ -186,7 +186,6 @@ function App() {
       console.log("UI: AI Chunk Received:", p.text, "Strategy:", p.strategy);
       if (p.text === "") {
         setAiResponse(""); // Clear exclusively when a NEW generation starts
-        setTranscript(""); // Clear transcript for new generation start v23.2
       } else {
         setAiResponse(prev => prev + p.text);
       }
@@ -421,7 +420,7 @@ function App() {
             animate="visible"
             className="sub-pill-stack"
           >
-            {history.map((item, idx) => {
+            {history.map((item) => {
               // Extract core question for display (concise v20.9)
               const extractCoreQuestion = (text: string) => {
                 if (!text) return "";
@@ -437,7 +436,7 @@ function App() {
               return (
                 <motion.div
                   layout
-                  key={`hist-${idx}-${item.q.substring(0, 10)}`}
+                  key={`hist-${item.id}`}
                   className="sub-pill-item breadcrumb no-drag"
                   variants={pillVariants}
                   whileHover={{ scale: 1.02, backgroundColor: 'rgba(70, 70, 70, 0.6)', borderColor: 'var(--accent-primary)' }}

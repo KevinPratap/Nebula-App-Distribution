@@ -311,7 +311,6 @@ body {
   font-size: 13px;
   color: var(--text-secondary);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
   white-space: nowrap !important;
   max-width: fit-content !important;
 }
