@@ -12,6 +12,8 @@ import {
   Lock,
   X,
   Mic,
+  Play,
+  Pause,
   Upload,
   KeyRound,
   LogIn,
@@ -213,7 +215,7 @@ function App() {
     };
     window.electron.ipcRenderer.on('account-info-received', (p: any) => {
       console.log("UI: Account Info Received ->", p);
-      setAccount(p);
+      setAccount((prev: any) => ({ ...prev, ...p }));
       setIsLoggingIn(false);
     });
     window.electron.ipcRenderer.on('context-fetched-received', (p: any) => setContextText(p.text));
@@ -356,16 +358,11 @@ function App() {
           </div>
 
           <div className="pill-right">
-            {/* Session Timer Badge */}
-            {sessionActive ? (
+            {sessionActive && (
               <div className={`session-timer no-drag ${timerUrgent ? 'urgent' : ''}`} onClick={handleMicClick} style={{ cursor: 'pointer' }}>
                 {formatCountdown(remainingMs)}
               </div>
-            ) : account.email && account.plan !== "GUEST" ? (
-              <div className="session-timer no-drag expired" onClick={handleMicClick} style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.2)' }}>
-                RENEW
-              </div>
-            ) : null}
+            )}
 
             {!isAuthorized ? (
               <motion.button
@@ -397,8 +394,15 @@ function App() {
             <button
               className={`icon-circle no-drag ${isLive ? 'btn-accent' : ''} ${!isAuthorized ? 'btn-locked' : ''}`}
               onClick={handleMicClick}
+              title={isLive ? "Pause Session" : "Start Session"}
             >
-              {isAuthorized ? <Mic size={18} /> : <Lock size={14} />}
+              {!isAuthorized ? (
+                <Lock size={14} />
+              ) : isLive ? (
+                <Pause size={18} fill="currentColor" />
+              ) : (
+                <Play size={18} fill="currentColor" />
+              )}
             </button>
 
             <button className="icon-circle no-drag" onClick={() => window.close()}>
