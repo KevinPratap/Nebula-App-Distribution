@@ -20,6 +20,7 @@ function createWindow() {
         skipTaskbar: false,
         maximizable: false,
         fullscreenable: false,
+        icon: join(__dirname, 'public/logo.png'),
         webPreferences: {
             preload: join(__dirname, 'preload.js'),
             sandbox: false,
@@ -28,19 +29,24 @@ function createWindow() {
     });
 
     const devUrl = 'http://localhost:5173';
+    const isDev = !app.isPackaged;
 
     const loadWithRetry = (url, attempts = 0) => {
-        mainWindow.loadURL(url).then(() => {
-            console.log(`Successfully loaded ${url}`);
+        const loadPromise = isDev
+            ? mainWindow.loadURL(url)
+            : mainWindow.loadFile(join(__dirname, 'dist', 'index.html'));
+
+        loadPromise.then(() => {
+            console.log(`Successfully loaded UI`);
             mainWindow.show();
             console.log('Main: Window should be visible now. isVisible:', mainWindow.isVisible());
             mainWindow.focus();
         }).catch(e => {
-            if (attempts < 20) {
-                console.log(`Failed to load ${url}, retrying in 1s... (${attempts + 1}/20)`);
+            if (isDev && attempts < 20) {
+                console.log(`Failed to load dev URL, retrying in 1s... (${attempts + 1}/20)`);
                 setTimeout(() => loadWithRetry(url, attempts + 1), 1000);
             } else {
-                console.error(`Failed to load ${url} after 20 attempts.`);
+                console.error(`Failed to load UI:`, e);
             }
         });
     };
@@ -53,30 +59,39 @@ function createWindow() {
 }
 
 function createTray() {
-    const iconPath = join(__dirname, 'public/vite.svg');
+    const iconPath = join(__dirname, 'public/logo.png');
     const icon = nativeImage.createFromPath(iconPath);
-    tray = new Tray(icon.resize({ width: 16, height: 16 }));
+    tray = new Tray(icon.resize({ width: 20, height: 20 }));
 
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Show Assistant', click: () => mainWindow?.show() },
         { label: 'Hide Assistant', click: () => mainWindow?.hide() },
-        { type: 'separator' },
-        {
-            label: 'Stealth Mode', type: 'checkbox', checked: false, click: (item) => {
-                mainWindow?.webContents.send('toggle-stealth', item.checked);
-            }
-        },
         { type: 'separator' },
         { label: 'Quit', click: () => app.quit() }
     ]);
 
     tray.setToolTip('Nebula Assistant');
     tray.setContextMenu(contextMenu);
+
+    tray.on('click', () => {
+        if (mainWindow?.isVisible()) {
+            mainWindow.hide();
+        } else {
+            mainWindow?.show();
+            mainWindow?.focus();
+        }
+    });
+
+    tray.on('double-click', () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+    });
 }
 
 function registerShortcuts(key = 'F2') {
     globalShortcut.unregisterAll();
 
+    // Alt+Space: Show/Hide Toggle
     globalShortcut.register('Alt+Space', () => {
         if (mainWindow?.isVisible()) {
             mainWindow.hide();
@@ -86,21 +101,68 @@ function registerShortcuts(key = 'F2') {
         }
     });
 
+    if (!key) return;
+
     try {
-        globalShortcut.register(key, () => {
+        const success = globalShortcut.register(key, () => {
             mainWindow?.webContents.send('hotkey-triggered');
         });
+        if (!success) {
+            console.error(`Main: Failed to register hotkey: ${key}`);
+            mainWindow?.webContents.send('status-received', { msg: `HOTKEY ${key} IN USE`, is_error: true });
+        } else {
+            console.log(`Main: Registered activation hotkey: ${key}`);
+        }
     } catch (e) {
-        console.error("Hotkey registration failed:", key);
+        console.error("Hotkey registration exception:", e);
     }
+
+    // --- Window Positioning Shortcuts (v51.29) ---
+    globalShortcut.register('Alt+Shift+1', () => repositionWindow('top'));
+    globalShortcut.register('Alt+Shift+2', () => repositionWindow('middle'));
+    globalShortcut.register('Alt+Shift+3', () => repositionWindow('bottom'));
+}
+
+function repositionWindow(zone) {
+    if (!mainWindow) return;
+    const { width: winWidth, height: winHeight } = mainWindow.getBounds();
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: scrWidth, height: scrHeight } = primaryDisplay.workAreaSize;
+
+    const x = Math.floor((scrWidth - winWidth) / 2);
+    let y = 0;
+
+    if (zone === 'top') {
+        y = 20; // 20px gap from top v51.31
+    } else if (zone === 'middle') {
+        y = Math.floor((scrHeight - winHeight) / 2);
+    } else if (zone === 'bottom') {
+        y = Math.floor(scrHeight - winHeight - 40); // 40px margin from bottom
+    }
+
+    mainWindow.setPosition(x, y, true);
+    console.log(`Main: Repositioned window to ${zone} -> [${x}, ${y}]`);
 }
 
 function startSidecar() {
     const rootDir = __dirname;
-    const pythonPath = join(rootDir, '.venv/Scripts/python.exe');
-    const scriptPath = join(rootDir, 'engine_sidecar.py');
+    let pythonPath;
+    let scriptPath;
+    let args;
 
-    sidecarProcess = spawn(pythonPath, [scriptPath], {
+    if (app.isPackaged) {
+        pythonPath = join(process.resourcesPath, 'engine_sidecar.exe');
+        scriptPath = ''; // Not needed for EXE
+        args = [];
+    } else {
+        pythonPath = join(rootDir, '.venv/Scripts/python.exe');
+        scriptPath = join(rootDir, 'engine_sidecar.py');
+        args = [scriptPath];
+    }
+
+    console.log(`Main: Starting sidecar from ${pythonPath}`);
+
+    sidecarProcess = spawn(pythonPath, args, {
         cwd: rootDir,
         env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONHTTPSVERIFY: '0' },
         windowsHide: true
@@ -257,8 +319,9 @@ function startMouseMonitor() {
             const rx = point.x - bounds.x;
             const ry = point.y - bounds.y;
 
-            const overPill = (rx >= 15 && rx <= 815 && ry >= 0 && ry <= 48);
-            const overDrawer = isDrawerOpen && (ry > 48);
+            // V33.5: Expanded Hit zones to include sub-pill stack (ry <= 150)
+            const overPill = (rx >= 0 && rx <= 830 && ry >= 0 && ry <= 150);
+            const overDrawer = isDrawerOpen && (ry > 150);
 
             if (overPill || overDrawer) {
                 if (mainWindow.isIgnored !== false) {
